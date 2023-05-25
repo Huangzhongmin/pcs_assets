@@ -1,0 +1,49 @@
+#!/bin/bash
+
+echo "USAGE: cipc [username1 username2 ...]"
+echo "Omitting username to clear the current user. Using 'all' to clear all users except who is runing PCS."
+
+# Default
+if [ $# -eq 0 ]; then
+userlist=${USER}
+# All
+elif [ $1 == 'all' ]; then
+occupied=`w -h -s|grep 'runsa\|runtest\|run_wave\|startpcs' | awk '{print $1}'|sort|uniq`
+userlist=`ipcs -m | awk '{print $3}' | sort | uniq`
+for cut in $occupied
+do
+   userlist=${userlist/$cut/}
+done
+userlist=${userlist/owner/}
+userlist=${userlist/Memory/}
+userlist=`echo $userlist|tr -s " "`
+# Specified
+else
+userlist=$@
+fi
+echo "clear IPC for: $userlist (yes)?"
+read conf 
+if [ $conf != 'yes' ]; then
+    exit 0
+fi
+
+for tofree in $userlist
+do
+    echo 'clear Shared Memory Segments for user' ${tofree} 'shmid :'
+    ipcs -m | grep ${tofree:0:10}| awk '{if($2~/^[0-9]+$/)print $2}'  > out
+    cat out
+    cat out | while read shid
+    do
+        ipcrm -m $shid
+    done
+    rm -fr out
+
+    echo 'clear Semaphore Arrays for user' ${tofree} 'shaid :'
+    ipcs -s | grep ${tofree:0:10}| awk '{if($2~/^[0-9]+$/)print $2}'  > out
+    cat out
+    cat out | while read shid
+    do
+        ipcrm -s $shid
+    done
+    rm -fr out
+done
